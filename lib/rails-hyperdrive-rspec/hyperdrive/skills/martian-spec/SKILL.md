@@ -1,5 +1,5 @@
 ---
-name: evil-spec
+name: martian-spec
 gem: rspec-rails
 versions:
   - ">= 6.0"

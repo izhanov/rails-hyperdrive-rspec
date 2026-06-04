@@ -8,9 +8,9 @@ Gem::Specification.new do |spec|
 
   spec.summary     = "Rails Hyperdrive companion gem: RSpec skill for AI coding agents."
   spec.description = <<~DESC
-    Companion gem for rails-hyperdrive. Ships the `evil-spec` skill — a procedural,
+    Companion gem for rails-hyperdrive. Ships the `martian-spec` skill — a procedural,
     model-invoked guide for writing RSpec specs in Rails projects. Installed lazily
-    by `bin/rails hyperdrive:init` into `.claude/skills/evil-spec/SKILL.md`.
+    by `bin/rails hyperdrive:init` into `.claude/skills/martian-spec/SKILL.md`.
   DESC
   spec.homepage    = "https://github.com/izhanov/rails-hyperdrive-rspec"
   spec.license     = "MIT"
