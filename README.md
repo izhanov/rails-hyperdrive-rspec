@@ -1,6 +1,6 @@
 # rails-hyperdrive-rspec
 
-Companion gem for [rails-hyperdrive](https://github.com/Bakaface/rails-hyperdrive) — ships an `evil-spec` skill for AI coding agents working with RSpec in Rails projects.
+Companion gem for [rails-hyperdrive](https://github.com/Bakaface/rails-hyperdrive) — ships an `martian-spec` skill for AI coding agents working with RSpec in Rails projects.
 
 ## Install
 
@@ -12,7 +12,7 @@ group :development do
 end
 ```
 
-Then run `bin/rails hyperdrive:init`. The skill is installed to `.claude/skills/evil-spec/SKILL.md` and loaded lazily by Claude Code when relevant.
+Then run `bin/rails hyperdrive:init`. The skill is installed to `.claude/skills/martian-spec/SKILL.md` and loaded lazily by Claude Code when relevant.
 
 ## License
 
