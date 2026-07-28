@@ -374,9 +374,10 @@ config.active_record.verbose_query_logs = false     # no per-query backtrace
 config.active_record.query_log_tags_enabled = false  # no SQL comment tagging
 ```
 
-The single biggest cheap win in most suites (Evil Martians measured a Rails suite
-drop from ~25min to ~12min from logging alone). Costs nothing and never changes
-behavior.
+Usually the biggest cheap win in a suite that has never been tuned: in Evil
+Martians' write-up, quieting the verbose query logs together with a Sentry
+logger fix took a single-process run from ~25min to ~12min, with the query
+logging doing the heavy lifting. Costs nothing and never changes behavior.
 
 ### 2. Weaken expensive global setup in test
 
