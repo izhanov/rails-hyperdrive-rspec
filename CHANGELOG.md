@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-06
+
 ### Added
 - Initial scaffold of the companion gem.
-- `evil-spec` skill targeting `rspec-rails`.
+- `martian-spec` skill targeting `rspec-rails`.
 - `martian-spec` skill: "Suite-level speed (CI)" section covering log quieting,
   weakening cryptographic KDFs in test, fair parallelization, and global
   failsafes for leaky state.
@@ -20,4 +22,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `martian-spec` skill description: also triggers when implementing a new
   feature or fixing a bug, not only when touching spec files directly.
 
-[Unreleased]: https://github.com/izhanov/rails-hyperdrive-rspec/compare/HEAD...HEAD
+[Unreleased]: https://github.com/izhanov/rails-hyperdrive-rspec/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/izhanov/rails-hyperdrive-rspec/releases/tag/v0.2.0
