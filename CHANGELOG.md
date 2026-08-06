@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failsafes for leaky state.
 - `martian-spec` skill: profiler cheat-sheet mapping each test-prof env flag to
   its tool and the question it answers.
+- Gemspec discovery metadata (`rails_hyperdrive_targets`,
+  `rails_hyperdrive_artifacts`) so `hyperdrive:discover` finds the gem on
+  rubygems before it is bundled.
 
 ### Changed
 - `martian-spec` skill description: also triggers when implementing a new
