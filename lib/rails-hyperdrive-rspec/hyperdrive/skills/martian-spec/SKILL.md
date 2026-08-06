@@ -4,7 +4,7 @@ gem: rspec-rails
 versions:
   - ">= 6.0"
   - "< 9.0"
-description: "Writing and reviewing RSpec tests in Rails projects. Use when (1) creating new spec files, (2) reviewing test code for anti-patterns, (3) optimizing slow tests, factory performance, or CI queue time, (4) debugging flaky or order-dependent specs. MUST use when working with let_it_be, before_all, factory_bot, spec file organization, or service/model/controller/job spec layer decisions. Covers: RSpec, test-prof, factory_bot, spec layering, CI performance."
+description: "Writing and reviewing RSpec tests in Rails projects. Use when (1) implementing a new feature or fixing a bug in a Rails app -- the specs that come with it are part of the change, (2) creating new spec files or adjusting existing ones, (3) reviewing test code for anti-patterns, (4) optimizing slow tests, factory performance, or CI queue time, (5) debugging flaky or order-dependent specs. MUST use when working with let_it_be, before_all, factory_bot, spec file organization, or service/model/controller/job spec layer decisions. Covers: RSpec, test-prof, factory_bot, spec layering, CI performance."
 ---
 
 # RSpec for Rails
@@ -355,3 +355,153 @@ Inline diagnostic steps (no external docs required):
 4. **Time-leak suspect?** Search for `travel_to` / `freeze_time` inside `before_all` / `let_it_be` blocks.
 5. **State-leak suspect?** Check for Redis/cache writes, `update_columns`, or model callbacks that bypass the transaction.
 6. **Mock-leak suspect?** `leaked into another example` errors mean a mock was set up in `before_all` or `let_it_be` — move it to `before`.
+
+## Suite-level speed (CI)
+
+`let_it_be`/factory tuning is per-example. These four levers cut whole-suite CI
+time and are usually cheaper per second saved. Do them roughly in this order —
+the first is almost free and often the biggest.
+
+### 1. Quiet the logs (do this first)
+
+The default test `log_level` is `:debug`, so every SQL statement is written to
+`log/test.log` — a suite emitting tens of thousands of queries pays real I/O for
+output nobody reads. In `config/environments/test.rb`:
+
+```ruby
+config.log_level = :fatal
+config.active_record.verbose_query_logs = false     # no per-query backtrace
+config.active_record.query_log_tags_enabled = false  # no SQL comment tagging
+```
+
+Usually the biggest cheap win in a suite that has never been tuned: in Evil
+Martians' write-up, quieting the verbose query logs together with a Sentry
+logger fix took a single-process run from ~25min to ~12min, with the query
+logging doing the heavy lifting. Costs nothing and never changes behavior.
+
+### 2. Weaken expensive global setup in test
+
+Cryptographic KDFs (Argon2id, bcrypt, scrypt, PBKDF2), blind indexes, and
+password hashing are CPU bottlenecks that dominate the *slowest examples* —
+they're designed to be slow. Use minimal cost in test only:
+
+```ruby
+# bcrypt
+BCrypt::Engine.cost = BCrypt::Engine::MIN_COST   # in test setup
+# Argon2 / custom KDF — expose t_cost/m_cost/p_cost as env-aware config and
+# use the cheapest params in test (e.g. t_cost: 1, tiny m_cost).
+```
+
+Find them: they're the top entries in `--profile`. If your slowest specs are all
+one crypto/auth feature, this is the fix, not factory work.
+
+### 3. Parallelize fairly (runner choice matters)
+
+Running across CPU cores is the biggest wall-clock lever once the above are done,
+but the runner matters:
+
+- **`parallel_tests`** splits *files* across processes up front (static). The
+  slowest file becomes the bottleneck and each worker boots the app separately.
+- **`test-queue`** (preferred) forks workers after one boot and hands out
+  examples from a shared queue — a free worker grabs the next spec, so slow
+  files can't strand a worker, and there's no per-worker re-boot. This is what
+  Rails' own Minitest `parallelize` does (fork + distribute), which is why a
+  Minitest suite often looks "faster" than a single-process RSpec — it's the
+  parallelism, not the framework.
+
+Give each worker its own database so workers never contend — but the setup
+differs by runner:
+
+- **`test-queue`** does NOT set `TEST_ENV_NUMBER` (its env vars, e.g.
+  `TEST_QUEUE_WORKERS`, control the queue, not worker identity) — it forks
+  after boot, so workers inherit the parent's DB connection. The stock
+  `rspec-queue` binary has no per-worker hooks; wire a custom runner and
+  reconnect in `after_fork`:
+
+  ```ruby
+  #!/usr/bin/env ruby
+  # bin/test-queue — run as: bin/test-queue spec
+  require "test_queue"
+  require "test_queue/runner/rspec"
+
+  class Runner < TestQueue::Runner::RSpec
+    def after_fork(num)
+      db = ActiveRecord::Base.connection_db_config.configuration_hash
+      ActiveRecord::Base.establish_connection(db.merge(database: "#{db[:database]}_#{num}"))
+    end
+  end
+
+  Runner.new.execute
+  ```
+
+  Create/load the per-worker schemas once in CI setup before the run.
+
+- **`parallel_tests`** sets `TEST_ENV_NUMBER` per process: suffix the database
+  name with it in `database.yml` (SQLite: one file per number), and create the
+  databases with `rake parallel:create parallel:load_schema`.
+
+On CI, know your core count first (GitHub-hosted **private** repos get 2 vCPUs,
+public get 4) — cache the runtime log for runtime-based balancing.
+
+**A fair queue exposes every latent isolation bug** — specs that only passed
+because another file ran first in the same process. This is a feature: it finds
+real order-dependence. When a spec fails only under parallelism, run it *alone*
+(`rspec path/to/x_spec.rb`) — if it fails there too, it's a self-sufficiency bug
+(a missing `require`/constant, or leaked global state), not the runner.
+
+### 4. Global failsafes for leaky state
+
+Under a fair runner, one leaked global crashes unrelated specs in other workers.
+Add belt-and-suspenders resets in `spec/rails_helper.rb`:
+
+```ruby
+config.after { travel_back }  # undo any stray travel_to/freeze_time
+# reset any singletons / global clients / thread-locals the app sets
+```
+
+Clearing the cache needs care under parallelism: with a shared store, one
+worker's `Rails.cache.clear` wipes every other worker's entries. Namespace the
+store per worker first, then clear.
+
+Only if the app uses `:redis_cache_store` (or any shared store) in test:
+
+```ruby
+# config/environments/test.rb
+config.cache_store = :redis_cache_store,
+  { namespace: "test#{ENV.fetch("TEST_ENV_NUMBER", "")}" }
+
+# spec/rails_helper.rb
+config.after { Rails.cache.clear }
+```
+
+Under `test-queue` nothing sets `TEST_ENV_NUMBER` — assign it in the custom
+runner's `after_fork` (`ENV["TEST_ENV_NUMBER"] = num.to_s`) so the same
+namespacing works there.
+
+Otherwise (`:null_store`/`:memory_store`, i.e. per-process) just:
+
+```ruby
+# spec/rails_helper.rb
+config.after { Rails.cache.clear }
+```
+
+Prefer fixing the leak at its source (the time-leak / mock-leak red flags
+above); the global `after` is the safety net for what slips through.
+
+## Profiler cheat-sheet
+
+| Env / flag | Tool | Answers |
+|---|---|---|
+| `FPROF=1` | FactoryProf | per-factory create counts; `total` ≫ `top-level` = cascade |
+| `FACTORY_DEFAULT_PROF=1` | FactoryDefault prof | which implicit associations `create_default` could share |
+| `EVENT_PROF='sql.active_record'` | EventProf | time spent in SQL (is it even the bottleneck?) |
+| `EVENT_PROF='factory.create'` | EventProf | share of time in factories |
+| `RD_PROF=1` | RSpecDissect | `before`-hook time vs example-body time, slowest groups |
+| `TPS_PROF=1` | TPS profiler | files with the most shared-setup overhead per example (best `let_it_be` candidates) |
+| `TEST_MEM_PROF=gc` | Memory profiler | examples contributing most to GC time |
+| `TEST_STACK_PROF=1` | StackProf | CPU flamegraph of the hottest code paths |
+| `--profile 10` | RSpec | slowest 10 examples |
+| `--seed N --bisect` | RSpec | minimal failing example pair for an order-dependence |
+
+Start with `EVENT_PROF`/`FPROF` to confirm *where* time goes before optimizing —
+if SQL is ~10% and factories are a third, don't chase N+1s.
