@@ -16,4 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `martian-spec` skill: profiler cheat-sheet mapping each test-prof env flag to
   its tool and the question it answers.
 
+### Changed
+- `martian-spec` skill description: also triggers when implementing a new
+  feature or fixing a bug, not only when touching spec files directly.
+
 [Unreleased]: https://github.com/izhanov/rails-hyperdrive-rspec/compare/HEAD...HEAD
