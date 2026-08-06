@@ -409,10 +409,39 @@ but the runner matters:
   Minitest suite often looks "faster" than a single-process RSpec — it's the
   parallelism, not the framework.
 
-Give each worker its own database (SQLite: one file per `TEST_ENV_NUMBER`;
-Postgres/MySQL: `rake parallel:create parallel:load_schema`) so workers never
-contend. On CI, know your core count first (GitHub-hosted **private** repos get
-2 vCPUs, public get 4) — cache the runtime log for runtime-based balancing.
+Give each worker its own database so workers never contend — but the setup
+differs by runner:
+
+- **`test-queue`** does NOT set `TEST_ENV_NUMBER` (its env vars, e.g.
+  `TEST_QUEUE_WORKERS`, control the queue, not worker identity) — it forks
+  after boot, so workers inherit the parent's DB connection. The stock
+  `rspec-queue` binary has no per-worker hooks; wire a custom runner and
+  reconnect in `after_fork`:
+
+  ```ruby
+  #!/usr/bin/env ruby
+  # bin/test-queue — run as: bin/test-queue spec
+  require "test_queue"
+  require "test_queue/runner/rspec"
+
+  class Runner < TestQueue::Runner::RSpec
+    def after_fork(num)
+      db = ActiveRecord::Base.connection_db_config.configuration_hash
+      ActiveRecord::Base.establish_connection(db.merge(database: "#{db[:database]}_#{num}"))
+    end
+  end
+
+  Runner.new.execute
+  ```
+
+  Create/load the per-worker schemas once in CI setup before the run.
+
+- **`parallel_tests`** sets `TEST_ENV_NUMBER` per process: suffix the database
+  name with it in `database.yml` (SQLite: one file per number), and create the
+  databases with `rake parallel:create parallel:load_schema`.
+
+On CI, know your core count first (GitHub-hosted **private** repos get 2 vCPUs,
+public get 4) — cache the runtime log for runtime-based balancing.
 
 **A fair queue exposes every latent isolation bug** — specs that only passed
 because another file ran first in the same process. This is a feature: it finds
@@ -426,9 +455,34 @@ Under a fair runner, one leaked global crashes unrelated specs in other workers.
 Add belt-and-suspenders resets in `spec/rails_helper.rb`:
 
 ```ruby
-config.after { travel_back }        # undo any stray travel_to/freeze_time
-config.after { Rails.cache.clear }  # if the app touches a real cache store
+config.after { travel_back }  # undo any stray travel_to/freeze_time
 # reset any singletons / global clients / thread-locals the app sets
+```
+
+Clearing the cache needs care under parallelism: with a shared store, one
+worker's `Rails.cache.clear` wipes every other worker's entries. Namespace the
+store per worker first, then clear.
+
+Only if the app uses `:redis_cache_store` (or any shared store) in test:
+
+```ruby
+# config/environments/test.rb
+config.cache_store = :redis_cache_store,
+  { namespace: "test#{ENV.fetch("TEST_ENV_NUMBER", "")}" }
+
+# spec/rails_helper.rb
+config.after { Rails.cache.clear }
+```
+
+Under `test-queue` nothing sets `TEST_ENV_NUMBER` — assign it in the custom
+runner's `after_fork` (`ENV["TEST_ENV_NUMBER"] = num.to_s`) so the same
+namespacing works there.
+
+Otherwise (`:null_store`/`:memory_store`, i.e. per-process) just:
+
+```ruby
+# spec/rails_helper.rb
+config.after { Rails.cache.clear }
 ```
 
 Prefer fixing the leak at its source (the time-leak / mock-leak red flags
