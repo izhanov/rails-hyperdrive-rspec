@@ -23,8 +23,10 @@ Gem::Specification.new do |spec|
   spec.metadata["rubygems_mfa_required"] = "true"
 
   # rails-hyperdrive discovery hints (pre-install; read remotely from rubygems).
-  spec.metadata["hyperdrive_targets"]    = "rspec-rails"
-  spec.metadata["hyperdrive_artifacts"]  = "skill"
+  # `hyperdrive:discover` searches rubygems for `rails_hyperdrive_targets`, so
+  # the prefix is what makes this gem findable before it is bundled.
+  spec.metadata["rails_hyperdrive_targets"]   = "rspec-rails"
+  spec.metadata["rails_hyperdrive_artifacts"] = "skill"
 
   spec.files = Dir[
     "lib/**/*",
