@@ -1,8 +1,8 @@
-require_relative "lib/rails-hyperdrive-rspec/version"
+require_relative "lib/rails-hyperdrive-martian-spec/version"
 
 Gem::Specification.new do |spec|
-  spec.name        = "rails-hyperdrive-rspec"
-  spec.version     = RailsHyperdriveRspec::VERSION
+  spec.name        = "rails-hyperdrive-martian-spec"
+  spec.version     = RailsHyperdriveMartianSpec::VERSION
   spec.authors     = ["izhanov"]
   spec.email       = ["aibek.izhanov@evilmartians.com"]
 
@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
     model-invoked guide for writing RSpec specs in Rails projects. Installed lazily
     by `bin/rails hyperdrive:init` into `.claude/skills/martian-spec/SKILL.md`.
   DESC
-  spec.homepage    = "https://github.com/izhanov/rails-hyperdrive-rspec"
+  spec.homepage    = "https://github.com/izhanov/rails-hyperdrive-martian-spec"
   spec.license     = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
 
