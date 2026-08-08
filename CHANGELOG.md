@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Renamed the gem from `rails-hyperdrive-rspec` to `rails-hyperdrive-martian-spec`.
+  The `RailsHyperdriveRspec` module is now `RailsHyperdriveMartianSpec` and the
+  entrypoint is `require "rails-hyperdrive-martian-spec"`. `rails-hyperdrive-rspec`
+  0.2.0 remains on rubygems but receives no further releases.
+
 ## [0.2.0] - 2026-08-06
 
 ### Added
@@ -25,5 +31,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `martian-spec` skill description: also triggers when implementing a new
   feature or fixing a bug, not only when touching spec files directly.
 
-[Unreleased]: https://github.com/izhanov/rails-hyperdrive-rspec/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/izhanov/rails-hyperdrive-rspec/releases/tag/v0.2.0
+[Unreleased]: https://github.com/izhanov/rails-hyperdrive-martian-spec/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/izhanov/rails-hyperdrive-martian-spec/releases/tag/v0.2.0
